@@ -1,0 +1,143 @@
+{
+  "name": "Wazuh - Security Alert Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9bcd73d2-fec2-4ff1-8a5f-bc35a85765b5",
+      "name": "Webhook",
+      "webhookId": "959a7a5c-0a87-4566-8031-bb2e987094b7"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const alert = $json.body ?? $json;\n\nconst rule = alert.rule ?? {};\nconst agent = alert.agent ?? {};\nconst data = alert.data ?? {};\n\nconst level = Number(rule.level ?? 0);\n\nlet severity = \"LOW\";\nlet action = \"LOG_ONLY\";\nlet priority = \"P4\";\n\nif (level >= 12) {\n  severity = \"CRITICAL\";\n  action = \"IMMEDIATE_SOC_ESCALATION\";\n  priority = \"P1\";\n} else if (level >= 10) {\n  severity = \"HIGH\";\n  action = \"SOC_ESCALATION\";\n  priority = \"P2\";\n} else if (level >= 7) {\n  severity = \"MEDIUM\";\n  action = \"ANALYST_REVIEW\";\n  priority = \"P3\";\n}\n\nreturn {\n  json: {\n    timestamp: alert.timestamp ?? new Date().toISOString(),\n\n    rule_id: rule.id ?? \"N/A\",\n    rule_level: level,\n    description: rule.description ?? \"No description\",\n\n    severity,\n    priority,\n    automated_action: action,\n\n    agent_id: agent.id ?? \"N/A\",\n    agent_name: agent.name ?? \"Wazuh Manager\",\n\n    source_ip: data.srcip ?? data.src_ip ?? \"N/A\",\n    destination_user: data.dstuser ?? data.user ?? \"N/A\",\n\n    manager: alert.manager?.name ?? \"wazuh-manager\",\n\n    requires_notification: level >= 7,\n\n    original_event: alert\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f666550e-b782-4f12-9294-9f4734df91ff",
+      "name": "SOC Alert Triage"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "517c4998-1cfb-4494-9955-a17a70182a0b",
+              "leftValue": "={{ $json.requires_notification  }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "59e171f3-1e28-4279-8b46-c617bb5711d6",
+      "name": "Requires SOC Notification?"
+    },
+    {
+      "parameters": {
+        "fromEmail": "suhaibkashif03@gmail.com",
+        "toEmail": "suhaibkashif03@gmail.com",
+        "subject": "=[{{$json.priority}}] Wazuh SOC Alert - Rule {{$json.rule_id}}",
+        "html": "=<h2>Wazuh Security Alert</h2>\n\n<p><strong>Severity:</strong> {{$json.severity}}</p>\n<p><strong>Priority:</strong> {{$json.priority}}</p>\n\n<hr>\n\n<p><strong>Rule ID:</strong> {{$json.rule_id}}</p>\n<p><strong>Rule Level:</strong> {{$json.rule_level}}</p>\n\n<p><strong>Description:</strong><br>\n{{$json.description}}</p>\n\n<p><strong>Affected Agent:</strong> {{$json.agent_name}}</p>\n\n<p><strong>Source IP:</strong> {{$json.source_ip}}</p>\n\n<p><strong>Destination User:</strong> {{$json.destination_user}}</p>\n\n<hr>\n\n<p><strong>Automated Action:</strong> {{$json.automated_action}}</p>\n\n<p><strong>Status:</strong> Pending SOC Analyst Review</p>\n\n<hr>\n\n<p>\nThis alert was automatically triaged and escalated by the\nWazuh-n8n security automation workflow.\n</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        -96
+      ],
+      "id": "c2f22d7b-1af1-4a0d-92c9-a4f7116d4e3e",
+      "name": "Send an Email",
+      "webhookId": "32d6b99f-bb40-431b-93d6-345b7e85f38e",
+      "credentials": {
+        "smtp": {
+          "id": "rIzhdQWUI9cQcz9Q",
+          "name": "SMTP account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "SOC Alert Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SOC Alert Triage": {
+      "main": [
+        [
+          {
+            "node": "Requires SOC Notification?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requires SOC Notification?": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "be912eda-d0ad-4b03-a966-6b37e305b861",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b5d0289a88620ea0c4919255fc1ab3f2c8e8c29eec6cc448396ddc1d35ac29e0"
+  },
+  "nodeGroups": [],
+  "id": "KiyLOFFYOPkNyxaW",
+  "tags": []
+}
